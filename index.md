@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html>
 <head>
 	<meta charset="utf-8" />
@@ -11,7 +10,6 @@ input{border:none; background: transparent; outline: 0;font-size:24px;width: 100
 </head>
 <body>
 
-<h2>Nested Todos</h2>
 <div id="nested-todos"></div>
 <div>
 	<hr>
