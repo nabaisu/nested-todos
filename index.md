@@ -251,10 +251,12 @@ var App = {
 			if (event.key === "ArrowDown" && !event.shiftKey) {
 				if (event.target.classList.contains("todo")) {
 					var nextId = n.accessNext(event.target.id);
+					self.displayTodos();
 					self.focusOn(nextId)
 				}	
 			} else if (event.key === "ArrowUp" && !event.shiftKey) {
 				if (event.target.classList.contains("todo")) {
+					self.displayTodos();
 					self.focusOn(n.accessPrevious(event.target.id))
 				}	
 			} else if (event.key === "Tab" && !event.shiftKey) {
@@ -300,8 +302,7 @@ var App = {
 	},
 	editTodo: function(id, value){
 		n.editTodo(id, value);
-		this.displayTodos();
-		this.focusOn(id);
+		util.store('todos', this.todoList);
 	},
 	displayTodos: function() {
 		//this.todoList = n.todoList;
