@@ -15,7 +15,7 @@ input{border:none; background: transparent; outline: 0;font-size:24px;width: 100
 <div id="nested-todos"></div>
 <div>
 	<hr>
-	<h3>how it works</h3>
+	<button>clear everything</button><h3>how it works</h3>
 	<ul>
 		<li><strong>Create todo</strong>: <kbd>Enter</kbd></li>
 		<li><strong>Edit todo</strong>: just write something on it</li>
@@ -25,6 +25,7 @@ input{border:none; background: transparent; outline: 0;font-size:24px;width: 100
 		<li><strong>Toggle a todo</strong>: <kbd>Shift</kbd> + <kbd>Enter</kbd></li>
 		<li><strong>Toggle all todos below</strong>: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd></li>
 		<li><strong>Delete a todo</strong>: <kbd>Backspace</kbd> on empty todo</li>
+		<li><strong>Delete all completed todos</strong>: <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd></li>
 	</ul>
 </div>
 
@@ -36,7 +37,7 @@ input{border:none; background: transparent; outline: 0;font-size:24px;width: 100
 	var nestedTodos = {
 		todo: { },
 		todoList: [],
-		createTodo: function(text = '', idTo){
+		createTodo: function(text = '', idTo, idAfter){
 			var todo = {
 				text: text, 
 				id: this.createUUID(),
@@ -47,8 +48,17 @@ input{border:none; background: transparent; outline: 0;font-size:24px;width: 100
 			};
 			if (idTo && arguments.length > 1) {
 				var whereTo = this.findTodo(idTo);
+				if (idAfter) { 
+					idAfter = this.findTodo(idAfter);
+					idAfter = whereTo.children.indexOf(idAfter); 
+				}
+				var whereTo = this.findTodo(idTo);
 				if(whereTo) {
-					whereTo.children.push(todo);
+					if(idAfter >= 0) {
+						whereTo.children.splice(idAfter+1, 0, todo);
+					} else {
+						whereTo.children.push(todo);
+					}
 				}
 			} else {
 				this.todoList.push(todo);				
@@ -201,6 +211,33 @@ input{border:none; background: transparent; outline: 0;font-size:24px;width: 100
 				return todo.id
 			}
 		},
+		deleteCompleted: function(id){
+			// go through all of the todos, if they are completed, then delete them:
+			var lastCheckedTodo;
+			var finishTodo;
+			if (id) {
+				lastCheckedTodo	= this.getIdOfLastChild(id);
+				finishTodo = id;
+			} else {
+				lastCheckedTodo	= this.getIdOfLastChild(n.todoList[n.todoList.length - 1].id);
+				finishTodo = n.todoList[0].id;
+			}
+			
+			while (lastCheckedTodo !== this.accessPrevious(lastCheckedTodo)) {
+				next = false;
+				var currentTodo = this.findTodo(lastCheckedTodo);
+				if (currentTodo.completed) {
+					next = this.accessPrevious(lastCheckedTodo);
+					this.deleteTodo(lastCheckedTodo);
+				}
+				if (lastCheckedTodo === finishTodo){ break; }
+				if (next) {
+					lastCheckedTodo = next;
+				} else {
+					lastCheckedTodo = this.accessPrevious(lastCheckedTodo);
+				}
+			}
+		},
 	}	
 	window.nestedTodos = nestedTodos;
 })();
@@ -275,25 +312,43 @@ var App = {
 					self.displayTodos();
 					self.focusOn(event.target.id);
 				}	
-			} else if (event.key === "Enter" && !event.shiftKey) {
+			} else if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.altKey) {
 				if (event.target.classList.contains("todo")) {
-					var newId = n.createTodo('',event.target.parent);
+					var newId = n.createTodo('',event.target.parent, event.target.id);
 					self.displayTodos();
 					self.focusOn(newId);
 				}
-			} else if (event.key === "Enter" && event.shiftKey && !event.ctrlKey) {
+			} else if (event.key === "Enter" && event.shiftKey && !event.ctrlKey && !event.altKey) {
 				if (event.target.classList.contains("todo")) {
 					n.toggleTodo(event.target.id);
 					self.displayTodos();
 					self.focusOn(event.target.id);						
 				}	
-			} else if (event.key === "Enter" && event.shiftKey && event.ctrlKey) {
+			} else if (event.key === "Enter" && event.shiftKey && event.ctrlKey && !event.altKey) {
 				if (event.target.classList.contains("todo")) {
 					n.toggleAllBelow(event.target.id);
 					self.displayTodos();
 					self.focusOn(event.target.id);						
-				}	
-			} 
+				}	 
+			} else if (event.key === "Enter" && event.shiftKey && !event.ctrlKey && event.altKey) {
+				if (event.target.classList.contains("todo")) {
+					if (!n.findTodo(event.target.id).completed) {
+						if (confirm('this todo is not marked done, want to delete all ?')){
+							if (confirm('you are about to clear all of the completed todos, are you sure you want to do this ?')) {
+								n.deleteCompleted();
+								self.displayTodos();
+								self.focusOn(n.todoList[0].id);				
+							}
+					}
+				}	else {
+					if (confirm('you are about to clear all of the completed todos inside this one, are you sure you want to do this ?')) {
+								n.deleteCompleted(event.target.id);
+								self.displayTodos();
+								self.focusOn(n.todoList[0].id);				
+							}
+				}
+			}
+		} 
 		});
 		window.onload = function() {
 			document.getElementById(self.todoList[0].id).focus();
@@ -647,11 +702,47 @@ tests({
 		nextId = n.accessPrevious(nextId);
 		eq(nextId, n.todoList[1].children[0].children[0].id)	
 		n.todoList = [];
-	}
-	
+	},
+	'delete all todos that are completed if no argument is given': function(){
+		n.todoList = [];
+		n.createTodo('1st')
+		n.createTodo('2nd')
+			n.createTodo('1bom dia', n.todoList[1].id)   // will toggle this one
+				n.createTodo('1adeus', n.todoList[1].children[0].id) // this will too be toggled
+			n.createTodo('2bom dias', n.todoList[1].id)
+				n.createTodo('2adeus', n.todoList[1].children[1].id)
+				n.createTodo('3adeus', n.todoList[1].children[1].id)
+		
+		n.toggleAllBelow(n.todoList[1].children[0].id)
+		n.deleteCompleted();
+		eq(n.todoList.length, 2);
+		eq(n.todoList[1].children.length, 1)
+		eq(n.todoList[1].children[0].text, "2bom dias")
+	},
+	'delete all todos that are completed below if id is given': function(){
+		n.todoList = [];
+		n.createTodo('1st')
+		n.createTodo('2nd') // all below will be toggled
+			n.createTodo('1bom dia', n.todoList[1].id)   // will delete below this one
+				n.createTodo('1adeus', n.todoList[1].children[0].id) // this should be deleted too
+			n.createTodo('2bom dias', n.todoList[1].id)
+				n.createTodo('2adeus', n.todoList[1].children[1].id)
+				n.createTodo('3adeus', n.todoList[1].children[1].id)
+		
+		n.toggleAllBelow(n.todoList[1].id)
+		n.deleteCompleted(n.todoList[1].children[0].id);
+		eq(n.todoList.length, 2);
+		eq(n.todoList[1].children.length, 1)
+		eq(n.todoList[1].children[0].text, "2bom dias")
+	},
+
+	'clear all todos of the tests': function(){
+		n.todoList = [];
+		eq(n.todoList.length, 0);	
+	},
+
 });
 
-	
 App.init();
 
 
